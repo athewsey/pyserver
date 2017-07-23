@@ -74,14 +74,16 @@ class Client(AoireClient):
     # TODO: Fix duplication of nGames default param
     async def play_game(self, room, nGames=1):
         await self.join(room, nGames)
-        startMsg = await self.start()
-        result = None
-        activePlayerIx = startMsg["playerIndex"]
-        while result is None:
-            result = await self.turn(activePlayerIx)
-            # 2 player game:
-            activePlayerIx = int(not activePlayerIx)
-        return result
+        for ixGame in range(nGames):
+            startMsg = await self.start()
+            result = None
+            activePlayerIx = startMsg["playerIndex"]
+            while result is None:
+                result = await self.turn(activePlayerIx)
+                # 2 player game:
+                activePlayerIx = int(not activePlayerIx)
+        
+        return "Done"
 
 class Session:
     def __init__(self, roomName, players, nGames=1):

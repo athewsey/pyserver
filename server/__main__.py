@@ -12,6 +12,7 @@ JWT_ALGORITHM = "HS512"
 JWT_EXPIRY_SECONDS = 20
 
 GOMOKU_HOST = "hub.nechifor.net:8443"
+GOMOKU_DEFAULT_GAMES = 1
 GOMOKU_DEFAULT_ROOM = "101"
 GOMOKU_USER_AGENT = "Gomugi (by Alex)"
 
@@ -46,8 +47,8 @@ async def play(req):
     """Sign in to a room and play a Gomoku game
     """
     room = req.query.get("room") or GOMOKU_DEFAULT_ROOM
-
-    await GomokuClient(GOMOKU_HOST, GOMOKU_USER_AGENT).play_game(room)
+    games = req.query.get("games") or GOMOKU_DEFAULT_GAMES
+    await GomokuClient(GOMOKU_HOST, GOMOKU_USER_AGENT).play_game(room, games)
     return web.json_response({ "success": True })
 
 
