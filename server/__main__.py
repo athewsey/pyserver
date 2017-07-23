@@ -11,6 +11,10 @@ JWT_SECRET = "secret"
 JWT_ALGORITHM = "HS512"
 JWT_EXPIRY_SECONDS = 20
 
+GOMOKU_HOST = "hub.nechifor.net:8443"
+GOMOKU_DEFAULT_ROOM = "101"
+GOMOKU_USER_AGENT = "Gomugi (by Alex)"
+
 async def login(req):
     post_data = await req.post()
     try:
@@ -37,13 +41,25 @@ async def test(req):
     text = "Hello, " + name
     return web.json_response(text)
 
-players = [
-    GomokuClient("hub.nechifor.net:8443", "Gomugi (by Alex)"),
-    GomokuClient("hub.nechifor.net:8443", "Gomugi (by Alex)")
-]
 
 async def play(req):
-    session = GomokuSession("101", players)
+    """Sign in to a room and play a Gomoku game
+    """
+    room = req.query.get("room") or GOMOKU_DEFAULT_ROOM
+
+    await GomokuClient(GOMOKU_HOST, GOMOKU_USER_AGENT).play_game(room)
+    return web.json_response({ "success": True })
+
+
+async def train(req):
+    """Play a Gomoku game against myself to train
+    """
+
+    players = [
+        GomokuClient(GOMOKU_HOST, GOMOKU_USER_AGENT),
+        GomokuClient(GOMOKU_HOST, GOMOKU_USER_AGENT)
+    ]
+    session = GomokuSession(GOMOKU_DEFAULT_ROOM, players)
     await session.run()
         
     return web.json_response({ "success": True })
@@ -53,6 +69,7 @@ app = web.Application()
 app.router.add_post("/login", login)
 app.router.add_get("/test", test)
 app.router.add_get("/play", play)
+app.router.add_get("/train", train)
 app.router.add_static(
     "/",
     os.path.abspath(os.path.join("client"))
