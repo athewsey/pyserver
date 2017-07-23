@@ -5,7 +5,7 @@ import json
 import jwt
 import os
 
-from GomokuClient import GomokuClient
+from Gomoku import Client as GomokuClient, Session as GomokuSession
 
 JWT_SECRET = "secret"
 JWT_ALGORITHM = "HS512"
@@ -38,25 +38,13 @@ async def test(req):
     return web.json_response(text)
 
 players = [
-    GomokuClient("hub.nechifor.net:8443"),
-    GomokuClient("hub.nechifor.net:8443")
+    GomokuClient("hub.nechifor.net:8443", "Gomugi (by Alex)"),
+    GomokuClient("hub.nechifor.net:8443", "Gomugi (by Alex)")
 ]
 
 async def play(req):
-    await players[0].join("101", "Gomugi (by Alex)")
-    await players[1].join("101", "Gomugi (by Alex)")
-    await players[0].start()
-    startMsg = await players[1].start()
-    gameResult = None
-    activePlayer = startMsg["playerIndex"]
-    while (gameResult is None):
-        firstPlayer = 0 if players[0].playerIx == activePlayer else 1
-        await players[firstPlayer].turn(activePlayer)
-        turnResult = await players[int(not firstPlayer)].turn(activePlayer)
-        if (turnResult):
-            gameResult = "finished"
-        else:
-            activePlayer = int(not activePlayer)
+    session = GomokuSession("101", players)
+    await session.run()
         
     return web.json_response({ "success": True })
 
