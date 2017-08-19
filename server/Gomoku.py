@@ -2,7 +2,9 @@
 """
 # PIP Dependencies:
 import asyncio
+import math
 import numpy as np
+from timeit import default_timer as timer
 
 # Local Dependencies:
 from AoireClient import AoireClient
@@ -20,7 +22,8 @@ class Agent(AoireClient):
 
     game_config = {
         "aoire_game_type": "Gomoku",
-        "board_size": 15
+        "board_size": 15,
+        "move_time_limit": 1.0 # seconds
     }
     
     """
@@ -71,10 +74,12 @@ class Agent(AoireClient):
         my_turn = player_ix == self.player_ix
         if (my_turn):
             # Our turn to move
-            # Temp: move to last empty area on board (bottom right)
-            target = np.argwhere(self.board == 0)[-1]
+            t_start = timer()
+            target = await self.select_move()
             # Flatten index & request the move:
-            print("Player {} moving to {}".format(self.player_ix, target))
+            print("Player {} moving to {} ({}ms)".format(
+                self.player_ix, target, (timer() - t_start) * 1000
+            ))
             await self.send({
                 "type": "Move",
                 "move": int(np.ravel_multi_index(target, self.board.shape))
@@ -120,6 +125,53 @@ class Agent(AoireClient):
         
         return result + " (by " + \
             (self.agent_config["author"] if self.agent_config["author"] else "Anonymous") + ")"
+    
+    async def select_move(self):
+        t_start = timer()
+        options = [{ "coords": coords, "score": 0 } for coords in np.argwhere(self.board == 0)]
+        # A crappy first guess (last empty square):
+        selection = options[-1]
+        timed_out = (timer() - t_start) >= self.game_config["move_time_limit"]
+
+        n_options = len(options)
+        board_size = self.game_config["board_size"]
+        N_DIMS = 2 # 2-D board
+        search_dirs = cartesian([[-1, 0, 1]] * N_DIMS)
+        # Remove the null [0, 0] search direction:
+        search_dirs = search_dirs[search_dirs.any(axis=1)]
+        next_options = []
+        ix_opt = 0
+        while (not timed_out and ix_opt < n_options):
+            opt = options[ix_opt]
+            searches = [{
+                "dir": dir,
+                "lim": int(np.min([
+                    opt["coords"][ix_dim] if dir[ix_dim] < 0 else (
+                        board_size - 1 - opt["coords"][ix_dim] if dir[ix_dim] > 0 else math.inf
+                    )
+                    for ix_dim in range(N_DIMS)
+                ]))
+            } for dir in search_dirs]
+            for search in searches:
+                run = 0
+                pos = opt["coords"]
+                for step in range(search["lim"]):
+                    newPos = np.add(pos, search["dir"])
+                    # Need to use a tuple to index the board, not a list as argwhere returns:
+                    if self.board[tuple(newPos)] == 1:
+                        run += 1
+                    else:
+                        break
+                search["run"] = run
+            opt["score"] = np.max([search["run"] for search in searches])
+            if opt["score"] > selection["score"]:
+                selection = opt        
+            
+            ix_opt += 1
+            timed_out = (timer() - t_start) >= self.game_config["move_time_limit"]
+        
+        return selection["coords"]
+
 
 class Session:
     def __init__(self, room, players, n_games=4):
@@ -133,3 +185,55 @@ class Session:
             [player.play_game(self.room, self.n_games) for player in self.players]
         )
         return list(filter(lambda x: x["player_ix"] == 0, [task.result() for task in done_play_tasks]))[0]
+
+
+def cartesian(arrays, out=None):
+    """
+    Generate a cartesian product of input arrays.
+    https://stackoverflow.com/questions/1208118/using-numpy-to-build-an-array-of-all-combinations-of-two-arrays
+
+    Parameters
+    ----------
+    arrays : list of array-like
+        1-D arrays to form the cartesian product of.
+    out : ndarray
+        Array to place the cartesian product in.
+
+    Returns
+    -------
+    out : ndarray
+        2-D array of shape (M, len(arrays)) containing cartesian products
+        formed of input arrays.
+
+    Examples
+    --------
+    >>> cartesian(([1, 2, 3], [4, 5], [6, 7]))
+    array([[1, 4, 6],
+           [1, 4, 7],
+           [1, 5, 6],
+           [1, 5, 7],
+           [2, 4, 6],
+           [2, 4, 7],
+           [2, 5, 6],
+           [2, 5, 7],
+           [3, 4, 6],
+           [3, 4, 7],
+           [3, 5, 6],
+           [3, 5, 7]])
+
+    """
+
+    arrays = [np.asarray(x) for x in arrays]
+    dtype = arrays[0].dtype
+
+    n = np.prod([x.size for x in arrays])
+    if out is None:
+        out = np.zeros([n, len(arrays)], dtype=dtype)
+
+    m = int(n / arrays[0].size)
+    out[:,0] = np.repeat(arrays[0], m)
+    if arrays[1:]:
+        cartesian(arrays[1:], out=out[0:m,1:])
+        for j in range(1, arrays[0].size):
+            out[j*m:(j+1)*m,1:] = out[0:m,1:]
+    return out
