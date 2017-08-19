@@ -163,6 +163,7 @@ class Agent(AoireClient):
                     else:
                         break
                 search["run"] = run
+            # TODO: Combine runs in opposing directions for total
             opt["score"] = np.max([search["run"] for search in searches])
             if opt["score"] > selection["score"]:
                 selection = opt        
