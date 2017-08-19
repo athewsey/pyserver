@@ -12,7 +12,7 @@ JWT_ALGORITHM = "HS512"
 JWT_EXPIRY_SECONDS = 20
 
 GOMOKU_HOST = "hub.nechifor.net:8443"
-GOMOKU_DEFAULT_GAMES = 1
+GOMOKU_DEFAULT_GAMES = 2
 GOMOKU_DEFAULT_ROOM = "101"
 GOMOKU_USER_AGENT = "Gomugi (by Alex)"
 
@@ -57,13 +57,13 @@ async def train(req):
     """
 
     players = [
-        GomokuClient(GOMOKU_HOST, GOMOKU_USER_AGENT),
-        GomokuClient(GOMOKU_HOST, GOMOKU_USER_AGENT)
+        GomokuClient(GOMOKU_HOST, GOMOKU_USER_AGENT + " A"),
+        GomokuClient(GOMOKU_HOST, GOMOKU_USER_AGENT + " B")
     ]
     session = GomokuSession(GOMOKU_DEFAULT_ROOM, players)
-    await session.run()
+    p1results = await session.run()
         
-    return web.json_response({ "success": True })
+    return web.json_response({ "success": True, "results": p1results })
 
 app = web.Application()
 
